@@ -3,6 +3,7 @@ use reqwest::Client;
 use indicatif::{ProgressBar, ProgressStyle};
 use futures_util::StreamExt;
 use clap::Parser;
+use url::Url;
 
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
@@ -22,6 +23,7 @@ struct Args {
 
 async fn download_file(client: &Client, args: &Args, url: &str) -> Result<(), Box<dyn std::error::Error>> {
     let package_dict = args.package.chars().nth(0).unwrap();
+
     let package_url = format!("{}/Packages/{}/{}.fc{}.{}.rpm",
                               url,
                               package_dict,
@@ -71,6 +73,9 @@ async fn list_of_mirrors(args: &Args) -> Result<Vec<String>, Box<dyn std::error:
         .await?;
     let lines = body.split("\n");
     for line in lines {
+        if line.starts_with("#") {
+            println!("Mirrorlist config: {}", line);
+        }
         if !line.starts_with("http") {
             continue;
         }
@@ -85,7 +90,8 @@ async fn main() {
     let args = Args::parse();
     let mirrors = list_of_mirrors(&args).await.unwrap();
     for mirror in mirrors {
-        println!("Checking mirror: {}", mirror);
+        let domain = Url::parse(mirror.as_str()).unwrap();
+        println!("Checking mirror: {}", domain.host_str().unwrap());
         match download_file(&Client::new(), &args, mirror.as_str()).await {
             Ok(b) => b,
             Err(e) => {
